@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: paper-downloader
+Version: 0.1.0
+Summary: Track new arxiv papers from favorite researchers.
+Requires-Python: >=3.10
+Requires-Dist: requests
+Requires-Dist: httpx
+Requires-Dist: PyYAML
+Requires-Dist: feedparser
+Provides-Extra: web
+Requires-Dist: flask>=3.0; extra == "web"

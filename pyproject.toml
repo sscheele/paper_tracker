@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "paper-downloader"
+version = "0.1.0"
+description = "Track new arxiv papers from favorite researchers."
+requires-python = ">=3.10"
+dependencies = [
+    "requests",
+    "httpx",
+    "PyYAML",
+    "feedparser",
+]
+
+[project.optional-dependencies]
+web = ["flask>=3.0"]
+
+[project.scripts]
+paper-downloader = "paper_downloader.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paper Tracker</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="header">
+  <h1>Paper Tracker <span class="badge" id="unread-badge">0</span></h1>
+  <div class="header-actions">
+    <div class="btn-group">
+      <button id="btn-fetch" class="btn-primary">Fetch</button><button id="btn-fetch-advanced" class="btn-group-addon" title="Fetch with options">&#9881;</button>
+    </div>
+    <button id="btn-search">Search</button>
+    <button id="btn-catchup" title="Mark all read">Catchup</button>
+    <button id="btn-settings" title="Settings">Settings</button>
+    <button id="btn-auto-refresh" class="btn-small" title="Auto-refresh (5min)">Auto</button>
+    <button id="btn-theme" class="theme-toggle" title="Toggle theme"></button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="filter-bar">
+    <div class="filter-group" id="filter-view">
+      <button data-view="unread" class="active">Unread</button>
+      <button data-view="all">All</button>
+      <button data-view="favorites">Favorites</button>
+    </div>
+    <select id="filter-author"></select>
+    <select id="filter-category"></select>
+    <select id="filter-tag"></select>
+    <select id="filter-sort">
+      <option value="published-desc">Newest first</option>
+      <option value="published-asc">Oldest first</option>
+      <option value="title-asc">Title A-Z</option>
+      <option value="title-desc">Title Z-A</option>
+      <option value="discovered_date-desc">Recently added</option>
+    </select>
+  </div>
+
+  <div class="paper-list" id="paper-list"></div>
+  <div class="pagination" id="pagination"></div>
+</div>
+
+<!-- Bulk action bar -->
+<div class="bulk-bar" id="bulk-bar">
+  <span class="count" id="bulk-count">0 selected</span>
+  <button id="bulk-read">Mark Read</button>
+  <button id="bulk-unread">Mark Unread</button>
+  <button id="bulk-tag">Add Tag</button>
+  <button id="bulk-select-all" class="btn-small">Select All</button>
+  <button id="bulk-deselect" class="btn-small">Deselect</button>
+</div>
+
+<!-- Search modal -->
+<div class="modal-overlay" id="search-modal">
+  <div class="modal">
+    <button class="modal-close">&times;</button>
+    <h2>Search arxiv</h2>
+    <form class="search-form" id="search-form">
+      <input type="text" id="search-author" placeholder="Author name" required>
+      <input type="number" id="search-days" placeholder="Days back" value="30" min="1" max="3650" style="width:100px">
+      <button type="submit" class="btn-primary">Search</button>
+    </form>
+    <div id="search-status" style="font-size:0.85em;color:var(--text-muted);margin-bottom:0.5em;"></div>
+    <div class="search-results" id="search-results"></div>
+    <div style="margin-top:0.75em;">
+      <button id="search-save" class="btn-primary">Save selected to library</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal">
+    <button class="modal-close">&times;</button>
+    <h2>Settings</h2>
+    <div style="margin-bottom:1em;">
+      <label style="font-weight:600;font-size:0.9em;">Contact email <span style="font-weight:normal;color:var(--text-muted)">(required by arxiv API)</span></label>
+      <input type="email" id="setting-mailto" placeholder="you@example.com" style="display:block;width:100%;margin-top:0.3em;">
+    </div>
+    <div style="margin-bottom:1.5em;">
+      <label style="font-weight:600;font-size:0.9em;">Default lookback <span style="font-weight:normal;color:var(--text-muted)">(days for Fetch button)</span></label>
+      <input type="number" id="setting-lookback" min="1" max="3650" style="display:block;width:80px;margin-top:0.3em;">
+    </div>
+    <h3 style="font-size:1em;margin:0 0 0.5em;">Tracked Authors</h3>
+    <ul class="author-list" id="author-list"></ul>
+    <form class="add-author-form" id="add-author-form" style="margin-bottom:1.5em;">
+      <input type="text" id="new-author" placeholder="Author name (e.g. Hinton, Geoffrey)" required>
+      <button type="submit">Add</button>
+    </form>
+    <button class="btn-primary" onclick="saveSettings()" style="width:100%;">Save Settings</button>
+  </div>
+</div>
+
+<!-- Fetch modal -->
+<div class="modal-overlay" id="fetch-modal">
+  <div class="modal" style="max-width:450px;">
+    <button class="modal-close">&times;</button>
+    <h2>Fetch Papers</h2>
+    <div style="margin-bottom:1em;">
+      <label style="font-weight:600;font-size:0.9em;">Lookback window</label>
+      <div style="display:flex;align-items:center;gap:0.5em;margin-top:0.3em;">
+        <input type="number" id="fetch-days" value="7" min="1" max="3650" style="width:80px;">
+        <span style="color:var(--text-secondary);font-size:0.9em;">days</span>
+      </div>
+    </div>
+    <button id="btn-start-fetch" class="btn-primary" style="width:100%;">Fetch</button>
+    <div id="fetch-progress" style="display:none;margin-top:1em;">
+      <div class="fetch-log" id="fetch-log"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

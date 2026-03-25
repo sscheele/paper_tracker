@@ -1,0 +1,21 @@
+# paper-downloader configuration
+#
+# Copy this to ~/.config/paper-downloader/config.yaml and edit.
+
+# Contact email — included in User-Agent for polite arxiv access.
+# arxiv requires this. See https://info.arxiv.org/help/api/tou.html
+mailto: you@example.com
+
+# Authors to track. Use names as they appear on arxiv.
+# The search is flexible — "LastName, FirstName" or just "LastName" both work,
+# but more specific names produce fewer false positives.
+authors:
+  - "Hinton, Geoffrey"
+  - "Bengio, Yoshua"
+  - "LeCun, Yann"
+
+# How many days back to look for new papers (default: 7)
+lookback_days: 7
+
+# Maximum results per author query (default: 50)
+max_results_per_author: 50
