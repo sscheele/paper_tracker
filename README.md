@@ -2,6 +2,8 @@
 
 Track new arXiv papers from your favorite researchers. Fetches papers via the arXiv API, stores them locally in SQLite, and lets you browse, tag, and annotate them from the command line or a web UI.
 
+Note: although this is called paper_downloader it actually isn't intended to download papers as a primary use case. Sorry for the poor naming!
+
 ## Installation
 
 Requires Python 3.10+.
@@ -10,10 +12,10 @@ Requires Python 3.10+.
 # Clone and install
 git clone <repo-url>
 cd paper_downloader
-pip install .
+uv pip install .
 
 # With the web UI
-pip install '.[web]'
+uv pip install '.[web]'
 ```
 
 Or with [uv](https://docs.astral.sh/uv/):
