@@ -1,2 +1,0 @@
-[console_scripts]
-paper-downloader = paper_downloader.cli:main

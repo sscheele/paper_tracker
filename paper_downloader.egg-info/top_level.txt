@@ -1,2 +1,0 @@
-build
-paper_downloader

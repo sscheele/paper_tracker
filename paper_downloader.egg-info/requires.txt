@@ -1,7 +1,0 @@
-requests
-httpx
-PyYAML
-feedparser
-
-[web]
-flask>=3.0
