@@ -12,10 +12,10 @@ Requires Python 3.10+.
 # Clone and install
 git clone <repo-url>
 cd paper_downloader
-uv pip install .
+uv pip install -e .
 
 # With the web UI
-uv pip install '.[web]'
+uv pip install -e '.[web]'
 ```
 
 Or with [uv](https://docs.astral.sh/uv/):
