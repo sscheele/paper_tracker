@@ -69,31 +69,61 @@ class ArxivClient:
         if elapsed < MIN_REQUEST_INTERVAL:
             time.sleep(MIN_REQUEST_INTERVAL - elapsed)
 
-    def _get(self, params: dict) -> str:
-        self._wait()
-        resp = self.session.get(ARXIV_API_URL, params=params, timeout=30)
-        self._last_request_time = time.monotonic()
-        resp.raise_for_status()
-        return resp.text
+    def _get(self, params: dict, max_retries: int = 4) -> str:
+        last_error = None
+        for attempt in range(max_retries):
+            self._wait()
+            resp = self.session.get(ARXIV_API_URL, params=params, timeout=30)
+            self._last_request_time = time.monotonic()
+            if resp.status_code == 429:
+                retry_after = resp.headers.get("Retry-After")
+                if retry_after:
+                    try:
+                        delay = int(retry_after)
+                    except ValueError:
+                        delay = MIN_REQUEST_INTERVAL * (attempt + 2)
+                else:
+                    delay = MIN_REQUEST_INTERVAL * (attempt + 2)
+                log.warning("arxiv API rate limited (429), Retry-After: %s, waiting %ds (attempt %d/%d)",
+                            retry_after, delay, attempt + 1, max_retries)
+                last_error = resp
+                time.sleep(delay)
+                continue
+            resp.raise_for_status()
+            return resp.text
+        last_error.raise_for_status()
 
     def search_author(self, author: str, max_results: int = 50) -> list[Paper]:
         """Search for recent papers by a single author."""
         return self.search_authors([author], max_results=max_results)
 
     def search_authors(self, authors: list[str], max_results: int = 200) -> list[Paper]:
-        """Search for recent papers by any of the given authors in a single API call."""
+        """Search for recent papers by any of the given authors.
+
+        Chunks into batches of 5 to keep query strings short and avoid 429s.
+        """
         if not authors:
             return []
-        query = " OR ".join(f'au:"{a}"' for a in authors)
-        params = {
-            "search_query": query,
-            "start": 0,
-            "max_results": max_results,
-            "sortBy": "submittedDate",
-            "sortOrder": "descending",
-        }
-        xml_text = self._get(params)
-        return self._parse_feed(xml_text)
+        chunk_size = 5
+        seen_ids = set()
+        all_papers = []
+        for i in range(0, len(authors), chunk_size):
+            chunk = authors[i:i + chunk_size]
+            query = " OR ".join(f'au:"{a}"' for a in chunk)
+            per_chunk = max(10, max_results * len(chunk) // len(authors))
+            params = {
+                "search_query": query,
+                "start": 0,
+                "max_results": per_chunk,
+                "sortBy": "submittedDate",
+                "sortOrder": "descending",
+            }
+            xml_text = self._get(params)
+            for paper in self._parse_feed(xml_text):
+                if paper.arxiv_id not in seen_ids:
+                    seen_ids.add(paper.arxiv_id)
+                    all_papers.append(paper)
+        return all_papers
 
     def fetch_tex_source(self, arxiv_id: str, max_retries: int = 5) -> TexResult:
         """Download and extract TeX source for a paper."""
@@ -113,8 +143,15 @@ class ArxivClient:
                     if resp.status_code == 404:
                         return TexResult(None, f"arxiv returned 404 for {arxiv_id} — source may not be available")
                     if resp.status_code == 429:
-                        delay = MIN_REQUEST_INTERVAL * (attempt + 1)
-                        last_error = f"rate limited (429), waited {delay:.0f}s"
+                        retry_after = resp.headers.get("Retry-After")
+                        if retry_after:
+                            try:
+                                delay = int(retry_after)
+                            except ValueError:
+                                delay = MIN_REQUEST_INTERVAL * (attempt + 1)
+                        else:
+                            delay = MIN_REQUEST_INTERVAL * (attempt + 1)
+                        last_error = f"rate limited (429), Retry-After: {retry_after}, waiting {delay:.0f}s"
                         log.info("TeX download for %s: %s (attempt %d/%d)", arxiv_id, last_error, attempt + 1, max_retries)
                         time.sleep(delay)
                         continue

@@ -388,28 +388,43 @@ function runFetchSSE(days) {
     log.innerHTML = '<div>Starting fetch...</div>';
   }
 
+  let hadError = false;
+  let lastError = '';
+
   const source = new EventSource(`/api/fetch${params}`);
   source.onmessage = (e) => {
     const msg = JSON.parse(e.data);
-    if (modalOpen) {
-      if (msg.type === 'progress') {
+    if (msg.type === 'progress') {
+      if (modalOpen) {
         log.innerHTML += `<div>${esc(msg.message)}</div>`;
-      } else if (msg.type === 'result') {
-        log.innerHTML += `<div>${msg.found} found, ${msg.new} new</div>`;
-      } else if (msg.type === 'error') {
-        log.innerHTML += `<div style="color:var(--error)">Error: ${esc(msg.message)}</div>`;
+        log.scrollTop = log.scrollHeight;
       }
-      log.scrollTop = log.scrollHeight;
-    }
-    if (msg.type === 'done') {
+    } else if (msg.type === 'result') {
+      if (modalOpen) {
+        log.innerHTML += `<div>${msg.found} found, ${msg.new} new</div>`;
+        log.scrollTop = log.scrollHeight;
+      }
+    } else if (msg.type === 'error') {
+      hadError = true;
+      lastError = msg.message;
+      if (modalOpen) {
+        log.innerHTML += `<div style="color:var(--error)">Error: ${esc(msg.message)}</div>`;
+        log.scrollTop = log.scrollHeight;
+      } else {
+        toast(`Fetch error: ${msg.message}`, 'error');
+      }
+    } else if (msg.type === 'done') {
       source.close();
       document.getElementById('btn-fetch').disabled = false;
       document.getElementById('btn-start-fetch').disabled = false;
-      toast(`Fetch complete: ${msg.total_new} new papers`, 'success');
+      if (!hadError) {
+        toast(`Fetch complete: ${msg.total_new} new papers`, 'success');
+      }
       refreshCurrent();
       loadFilters();
       if (modalOpen) {
-        log.innerHTML += `<div><strong>Done! ${msg.total_new} new papers.</strong></div>`;
+        const status = hadError ? `Done with errors.` : `Done! ${msg.total_new} new papers.`;
+        log.innerHTML += `<div><strong>${status}</strong></div>`;
         log.scrollTop = log.scrollHeight;
       }
     }
