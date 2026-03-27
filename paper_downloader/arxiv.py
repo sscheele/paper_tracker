@@ -98,32 +98,19 @@ class ArxivClient:
         return self.search_authors([author], max_results=max_results)
 
     def search_authors(self, authors: list[str], max_results: int = 200) -> list[Paper]:
-        """Search for recent papers by any of the given authors.
-
-        Chunks into batches of 5 to keep query strings short and avoid 429s.
-        """
+        """Search for recent papers by any of the given authors in a single API call."""
         if not authors:
             return []
-        chunk_size = 5
-        seen_ids = set()
-        all_papers = []
-        for i in range(0, len(authors), chunk_size):
-            chunk = authors[i:i + chunk_size]
-            query = " OR ".join(f'au:"{a}"' for a in chunk)
-            per_chunk = max(10, max_results * len(chunk) // len(authors))
-            params = {
-                "search_query": query,
-                "start": 0,
-                "max_results": per_chunk,
-                "sortBy": "submittedDate",
-                "sortOrder": "descending",
-            }
-            xml_text = self._get(params)
-            for paper in self._parse_feed(xml_text):
-                if paper.arxiv_id not in seen_ids:
-                    seen_ids.add(paper.arxiv_id)
-                    all_papers.append(paper)
-        return all_papers
+        query = " OR ".join(f'au:"{a}"' for a in authors)
+        params = {
+            "search_query": query,
+            "start": 0,
+            "max_results": max_results,
+            "sortBy": "submittedDate",
+            "sortOrder": "descending",
+        }
+        xml_text = self._get(params)
+        return self._parse_feed(xml_text)
 
     def fetch_tex_source(self, arxiv_id: str, max_retries: int = 5) -> TexResult:
         """Download and extract TeX source for a paper."""
