@@ -4,6 +4,8 @@ Track new arXiv papers from your favorite researchers. Fetches papers via the ar
 
 Note: although this is called paper_downloader it actually isn't intended to download papers as a primary use case. Sorry for the poor naming!
 
+Thank you to arXiv for use of its open access interoperability!
+
 ## Installation
 
 Requires Python 3.10+.

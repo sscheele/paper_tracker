@@ -337,11 +337,17 @@ def _queue_tex_download(arxiv_id: str, db_path: Path, config_path: Path | None):
             result = client.fetch_tex_source(arxiv_id)
             if result.ok:
                 db.set_tex_source(arxiv_id, result.source)
-                tex_dir = db_path.parent / "tex"
-                tex_dir.mkdir(parents=True, exist_ok=True)
                 safe_id = arxiv_id.replace("/", "_")
-                (tex_dir / f"{safe_id}.tex").write_text(result.source, encoding="utf-8")
-                log.info("Downloaded TeX source for %s (%d chars, saved to tex/%s.tex)", arxiv_id, len(result.source), safe_id)
+                paper_dir = db_path.parent / "tex" / safe_id
+                paper_dir.mkdir(parents=True, exist_ok=True)
+                for filename, data in result.files.items():
+                    dest = (paper_dir / filename).resolve()
+                    if not dest.is_relative_to(paper_dir.resolve()):
+                        log.warning("Skipping suspicious path in archive: %s", filename)
+                        continue
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    dest.write_bytes(data)
+                log.info("Downloaded TeX source for %s (%d chars, %d files saved to tex/%s/)", arxiv_id, len(result.source), len(result.files), safe_id)
             else:
                 log.warning("TeX download failed for %s: %s", arxiv_id, result.error)
         except Exception:

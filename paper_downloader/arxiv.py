@@ -12,7 +12,7 @@ import logging
 import tarfile
 import time
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import httpx
 import requests
@@ -23,7 +23,8 @@ log = logging.getLogger(__name__)
 @dataclass
 class TexResult:
     """Result of a TeX source download attempt."""
-    source: str | None
+    source: str | None  # concatenated text files, for DB storage
+    files: dict[str, bytes] = field(default_factory=dict)  # all files (incl. binary), for disk
     error: str | None = None
 
     @property
@@ -238,9 +239,13 @@ class ArxivClient:
 
 
 def _extract_tex(raw: bytes, arxiv_id: str = "") -> TexResult:
-    """Extract .tex content from arxiv e-print response bytes."""
+    """Extract source from arxiv e-print response bytes.
+
+    DB (source): concatenation of all text files with section headers.
+    Disk (files): every file in the archive, keyed by relative path.
+    """
     if not raw:
-        return TexResult(None, f"empty response body for {arxiv_id}")
+        return TexResult(None, error=f"empty response body for {arxiv_id}")
 
     # Try as gzipped content first
     try:
@@ -249,33 +254,41 @@ def _extract_tex(raw: bytes, arxiv_id: str = "") -> TexResult:
     except gzip.BadGzipFile:
         # Not gzipped — might be raw tex or PDF
         if raw[:5] == b"%PDF-":
-            return TexResult(None, f"{arxiv_id} source is PDF-only (no TeX submitted)")
+            return TexResult(None, error=f"{arxiv_id} source is PDF-only (no TeX submitted)")
         # Try as plain text
         text = raw.decode("utf-8", errors="replace")
         if "\\documentclass" in text or "\\begin{" in text:
-            return TexResult(text)
-        return TexResult(None, f"{arxiv_id} response is not gzip, not PDF, and doesn't look like TeX ({len(raw)} bytes, starts with {raw[:20]!r})")
+            return TexResult(text, files={f"{arxiv_id}.tex": raw})
+        return TexResult(None, error=f"{arxiv_id} response is not gzip, not PDF, and doesn't look like TeX ({len(raw)} bytes, starts with {raw[:20]!r})")
 
     # Decompressed — try as tar archive
     try:
         tar = tarfile.open(fileobj=io.BytesIO(decompressed))
-        all_files = [m.name for m in tar.getmembers() if m.isfile()]
+        all_names = [m.name for m in tar.getmembers() if m.isfile()]
         tex_parts = []
+        files: dict[str, bytes] = {}
         for member in tar.getmembers():
-            if member.isfile() and (member.name.endswith(".tex") or member.name.endswith(".bbl")):
-                f = tar.extractfile(member)
-                if f:
-                    tex_parts.append(f"% === {member.name} ===\n" + f.read().decode("utf-8", errors="replace"))
+            if not member.isfile():
+                continue
+            f = tar.extractfile(member)
+            if not f:
+                continue
+            data = f.read()
+            files[member.name] = data
+            # Include in DB blob if it decodes as text (no null bytes)
+            if b"\x00" not in data:
+                text = data.decode("utf-8", errors="replace")
+                tex_parts.append(f"% === {member.name} ===\n" + text)
         tar.close()
         if tex_parts:
-            return TexResult("\n\n".join(tex_parts))
-        return TexResult(None, f"{arxiv_id} tar archive has no .tex/.bbl files (found: {', '.join(all_files[:10])})")
+            return TexResult("\n\n".join(tex_parts), files=files)
+        return TexResult(None, error=f"{arxiv_id} tar archive has no text files (found: {', '.join(all_names[:10])})")
     except tarfile.TarError:
-        # Not a tar — single gzipped .tex file
+        # Not a tar — single gzipped file
         text = decompressed.decode("utf-8", errors="replace")
         if "\\documentclass" in text or "\\begin{" in text or len(text) > 100:
-            return TexResult(text)
-        return TexResult(None, f"{arxiv_id} decompressed content doesn't look like TeX ({len(decompressed)} bytes)")
+            return TexResult(text, files={f"{arxiv_id}.tex": decompressed})
+        return TexResult(None, error=f"{arxiv_id} decompressed content doesn't look like TeX ({len(decompressed)} bytes)")
 
 
 def _parse_datetime(s: str) -> datetime:
