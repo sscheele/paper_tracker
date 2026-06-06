@@ -186,3 +186,7 @@ def _cmd_serve(args):
     app = create_app(db_path=db_path, config_path=config_path)
     print(f"Paper tracker running at http://{args.host}:{args.port}")
     app.run(host=args.host, port=args.port, debug=args.debug)
+
+
+if __name__ == "__main__":
+    main()

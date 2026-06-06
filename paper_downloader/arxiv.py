@@ -31,12 +31,17 @@ class TexResult:
     def ok(self) -> bool:
         return self.source is not None
 
+# arxiv.org/api/query just 302-redirects to export.arxiv.org, so there's only
+# one real query backend.
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
 ATOM_NS = "{http://www.w3.org/2005/Atom}"
 ARXIV_NS = "{http://arxiv.org/schemas/atom}"
 
 # arxiv asks for at least 3 seconds between requests
 MIN_REQUEST_INTERVAL = 3.0
+
+# When arxiv refuses a request (429/5xx/timeout), wait this long and retry.
+RETRY_INTERVAL = 10.0
 
 
 @dataclass
@@ -70,29 +75,37 @@ class ArxivClient:
         if elapsed < MIN_REQUEST_INTERVAL:
             time.sleep(MIN_REQUEST_INTERVAL - elapsed)
 
-    def _get(self, params: dict, max_retries: int = 4) -> str:
-        last_error = None
-        for attempt in range(max_retries):
+    def _get(self, params: dict) -> str:
+        """Fetch from the arxiv query API, retrying forever until success.
+
+        arxiv intermittently rejects requests (429/5xx) even when we're under
+        the rate limit, so we keep retrying every RETRY_INTERVAL seconds rather
+        than giving up after a fixed count.
+        """
+        attempt = 0
+        while True:
+            attempt += 1
             self._wait()
-            resp = self.session.get(ARXIV_API_URL, params=params, timeout=30)
-            self._last_request_time = time.monotonic()
-            if resp.status_code == 429:
-                retry_after = resp.headers.get("Retry-After")
-                if retry_after:
-                    try:
-                        delay = int(retry_after)
-                    except ValueError:
-                        delay = MIN_REQUEST_INTERVAL * (attempt + 2)
-                else:
-                    delay = MIN_REQUEST_INTERVAL * (attempt + 2)
-                log.warning("arxiv API rate limited (429), Retry-After: %s, waiting %ds (attempt %d/%d)",
-                            retry_after, delay, attempt + 1, max_retries)
-                last_error = resp
-                time.sleep(delay)
+            try:
+                # (connect, read) timeouts. The read timeout is generous because
+                # a single large OR query across many authors can be slow.
+                resp = self.session.get(ARXIV_API_URL, params=params, timeout=(10, 90))
+                self._last_request_time = time.monotonic()
+                # 429 (rate limited) and 5xx (server busy/unavailable, e.g.
+                # arxiv's frequent 503s on heavy queries) are transient.
+                if resp.status_code == 429 or resp.status_code >= 500:
+                    log.warning("arxiv API returned %d, retrying in %ds (attempt %d)",
+                                resp.status_code, RETRY_INTERVAL, attempt)
+                    time.sleep(RETRY_INTERVAL)
+                    continue
+                resp.raise_for_status()
+                return resp.text
+            except (requests.Timeout, requests.ConnectionError) as e:
+                self._last_request_time = time.monotonic()
+                log.warning("arxiv API request failed: %s, retrying in %ds (attempt %d)",
+                            e, RETRY_INTERVAL, attempt)
+                time.sleep(RETRY_INTERVAL)
                 continue
-            resp.raise_for_status()
-            return resp.text
-        last_error.raise_for_status()
 
     def search_author(self, author: str, max_results: int = 50) -> list[Paper]:
         """Search for recent papers by a single author."""
