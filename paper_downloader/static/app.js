@@ -3,7 +3,7 @@ let state = {
   view: location.hash === '#top' ? 'top' : 'authors',
   papers: [],
   total: 0,
-  filters: { unread_only: true, favorite_only: false, author: '', category: '', tag: '', sort: 'published', order: 'desc' },
+  filters: { unread_only: true, favorite_only: false, author: '', category: '', tag: '', venue: '', year: '', sort: 'published', order: 'desc' },
   offset: 0,
   limit: 50,
   selected: new Set(),
@@ -37,6 +37,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('filter-author').addEventListener('change', e => { state.filters.author = e.target.value; state.offset = 0; loadPapers(); });
   document.getElementById('filter-category').addEventListener('change', e => { state.filters.category = e.target.value; state.offset = 0; loadPapers(); });
   document.getElementById('filter-tag').addEventListener('change', e => { state.filters.tag = e.target.value; state.offset = 0; loadPapers(); });
+  ['venue', 'year'].forEach(filter => {
+    document.getElementById(`filter-${filter}`).addEventListener('change', e => {
+      state.filters[filter] = e.target.value;
+      state.offset = 0;
+      loadPapers();
+    });
+  });
   document.getElementById('filter-sort').addEventListener('change', e => {
     const [sort, order] = e.target.value.split('-');
     state.filters.sort = sort;
@@ -102,6 +109,8 @@ async function api(path, opts = {}) {
 
 /* --- Papers --- */
 function renderPaperTabs() {
+  document.getElementById('filter-venue').hidden = state.view !== 'top';
+  document.getElementById('filter-year').hidden = state.view !== 'top';
   document.querySelectorAll('#paper-tabs button').forEach(button => {
     const active = button.dataset.source === state.view;
     button.classList.toggle('active', active);
@@ -125,6 +134,10 @@ async function loadPapers() {
   if (f.author) params.set('author', f.author);
   if (f.category) params.set('category', f.category);
   if (f.tag) params.set('tag', f.tag);
+  if (state.view === 'top') {
+    if (f.venue) params.set('venue', f.venue);
+    if (f.year) params.set('year', f.year);
+  }
 
   try {
     const data = await api(`/api/papers?${params}`);
@@ -359,6 +372,10 @@ async function loadFilters() {
     populateSelect('filter-author', data.authors, 'All authors');
     populateSelect('filter-category', data.categories, 'All categories');
     populateSelect('filter-tag', data.tags, 'All tags');
+    populateSelect('filter-venue', data.venues, 'All venues');
+    populateSelect('filter-year', data.years, 'All years');
+    document.getElementById('filter-venue').value = state.filters.venue;
+    document.getElementById('filter-year').value = state.filters.year;
   } catch (e) {}
 }
 

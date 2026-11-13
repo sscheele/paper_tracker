@@ -21,10 +21,11 @@ lookback_days: 7
 max_results_per_author: 50
 
 # Automatically include most cited conference papers when running fetch.
-# Example robotics, computer vision, and graphics set.
+# Example ML, robotics, computer vision, and graphics set.
 # Unknown venue names pass through to S2.
-conferences: [ICRA, CVPR, SIGGRAPH, IROS]
+conferences: [ICML, ICRA, CVPR, SIGGRAPH, IROS]
 # Empty = current year and previous year; ICLR/ICRA/CVPR infer conference year.
+# ICML (International Conference on Machine Learning) uses S2 year directly.
 conference_years: []
 top_papers_per_conference: 25
 # Optional Semantic Scholar key for higher rate limits.

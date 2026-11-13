@@ -218,6 +218,14 @@ class PaperDB:
         rows = self.conn.execute("SELECT name FROM tags ORDER BY name").fetchall()
         return [r[0] for r in rows]
 
+    def get_top_conference_tags(self) -> list[str]:
+        rows = self.conn.execute(
+            "SELECT DISTINCT pt.tag FROM paper_tags pt "
+            "JOIN paper_tags top_tag ON pt.arxiv_id = top_tag.arxiv_id "
+            "WHERE top_tag.tag = 'top-conference' ORDER BY pt.tag"
+        ).fetchall()
+        return [r[0] for r in rows]
+
     def tag_paper(self, arxiv_id: str, tag_name: str):
         self.conn.execute("INSERT OR IGNORE INTO tags (name) VALUES (?)", (tag_name,))
         self.conn.execute(
@@ -266,6 +274,7 @@ class PaperDB:
         author: str | None = None,
         category: str | None = None,
         tag: str | None = None,
+        any_tags: list[str] | None = None,
         view: str = "all",
         tracked_authors: list[str] | None = None,
         sort_by: str = "published",
@@ -318,6 +327,13 @@ class PaperDB:
             join = "JOIN paper_tags pt ON p.arxiv_id = pt.arxiv_id"
             conditions.append("pt.tag = ?")
             params.append(tag)
+        if any_tags is not None:
+            placeholders = ",".join("?" for _ in any_tags)
+            conditions.append(
+                "EXISTS (SELECT 1 FROM paper_tags WHERE arxiv_id = p.arxiv_id "
+                f"AND tag IN ({placeholders}))" if any_tags else "0"
+            )
+            params.extend(any_tags)
 
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 

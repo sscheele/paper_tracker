@@ -10,7 +10,7 @@ from flask import Flask, g, jsonify, render_template, request, Response, stream_
 
 from .arxiv import ArxivClient
 from .config import load_config, save_config
-from .conferences import fetch_conferences
+from .conferences import VENUE_ALIASES, fetch_conferences, resolve_venue
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +38,17 @@ def create_app(db_path: Path, config_path: Path | None = None):
 
     def get_config():
         return load_config(app.config["CONFIG_PATH"], create_if_missing=True)
+
+    def get_conference_tags():
+        # Built-in labels plus configured pass-through venues (e.g. "AAAI").
+        venues = set(VENUE_ALIASES)
+        venues.update(resolve_venue(v)[1] for v in get_config().get("conferences") or [])
+        tags = {}
+        for tag in get_db().get_top_conference_tags():
+            venue, _, year = tag.rpartition(" ")
+            if venue in venues and len(year) == 4 and year.isascii() and year.isdigit():
+                tags[tag] = (venue, year)
+        return tags
 
     @app.errorhandler(Exception)
     def handle_error(e):
@@ -68,14 +79,23 @@ def create_app(db_path: Path, config_path: Path | None = None):
     @app.route("/api/papers")
     def list_papers():
         db = get_db()
+        view = request.args.get("view", "all")
+        venue, year = request.args.get("venue"), request.args.get("year")
+        any_tags = None
+        if view == "top" and (venue or year):
+            any_tags = [
+                tag for tag, (tag_venue, tag_year) in get_conference_tags().items()
+                if (not venue or tag_venue == venue) and (not year or tag_year == year)
+            ]
         papers, total = db.query_papers(
             unread_only=request.args.get("unread_only") == "true",
             favorite_only=request.args.get("favorite_only") == "true",
             author=request.args.get("author") or None,
             category=request.args.get("category") or None,
             tag=request.args.get("tag") or None,
-            view=request.args.get("view", "all"),
-            tracked_authors=get_config()["authors"] if request.args.get("view") == "authors" else None,
+            any_tags=any_tags,
+            view=view,
+            tracked_authors=get_config()["authors"] if view == "authors" else None,
             sort_by=request.args.get("sort", "published"),
             sort_order=request.args.get("order", "desc"),
             limit=int(request.args.get("limit", 50)),
@@ -179,10 +199,13 @@ def create_app(db_path: Path, config_path: Path | None = None):
     @app.route("/api/filters")
     def filters():
         db = get_db()
+        conference_tags = get_conference_tags()
         return jsonify({
             "authors": db.get_distinct_authors(),
             "categories": db.get_distinct_categories(),
             "tags": db.get_all_tags(),
+            "venues": sorted({venue for venue, _ in conference_tags.values()}),
+            "years": sorted({year for _, year in conference_tags.values()}, reverse=True),
         })
 
     # --- Config / Author management ---

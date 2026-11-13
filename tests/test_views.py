@@ -112,6 +112,66 @@ def test_invalid_view(library):
         assert response.status_code == 400
 
 
+@pytest.fixture
+def conference_library(library):
+    db, db_path, config_path = library
+    date = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    db.upsert_paper(Paper("5", "CoRL paper", ["Other Researcher"], "Abstract", date, date,
+                          ["cs.RO"], "pdf", "abs"))
+    db.tag_paper("5", "top-conference")
+    db.tag_paper("5", "CoRL 2024")
+    # Include a paper with two distinct venue/year pairs and invalid/stale tags.
+    for aid, tags in {
+        "1": ["ICRA 2023"],  # Not a top paper: must not populate the dropdowns.
+        "3": ["ICRA 2024", "SIGGRAPH Asia 2025", "review 2022", "ICRA 25"],
+        "4": ["ICRA 2025", "T-RO 2024"],
+    }.items():
+        for tag in tags:
+            db.tag_paper(aid, tag)
+    db.tag_paper("2", "CoRL 2020")
+    db.untag_paper("2", "CoRL 2020")
+    return db_path, config_path
+
+
+def test_conference_filter_options(conference_library):
+    with create_app(*conference_library).test_client() as client:
+        response = client.get("/api/filters")
+        assert response.status_code == 200
+        assert response.json.get("venues") == ["CoRL", "ICLR", "ICRA", "SIGGRAPH Asia", "T-RO"]
+        assert response.json.get("years") == ["2025", "2024"]
+
+
+@pytest.mark.parametrize("filters,expected", [
+    ({"venue": "ICRA"}, {"3", "4"}),
+    ({"year": "2025"}, {"3", "4"}),
+    ({"venue": "ICRA", "year": "2025"}, {"4"}),
+    ({"venue": "SIGGRAPH Asia", "year": "2025"}, {"3"}),
+    ({"venue": "T-RO"}, {"4"}),
+    ({"venue": "SIGGRAPH Asia", "year": "2024"}, set()),
+    ({"venue": "ICML"}, set()),
+    ({"year": "2023"}, set()),
+    ({"venue": "ICRA", "year": "2025", "unread_only": "true"}, set()),
+    ({"year": "2024", "tag": "review", "favorite_only": "true"}, {"4"}),
+])
+def test_conference_filters(conference_library, filters, expected):
+    with create_app(*conference_library).test_client() as client:
+        response = client.get("/api/papers", query_string={"view": "top", **filters})
+        assert response.status_code == 200
+        assert {p["arxiv_id"] for p in response.json["papers"]} == expected
+        assert response.json["total"] == len(expected)
+        page = client.get("/api/papers", query_string={
+            "view": "top", **filters, "limit": 1, "offset": 1,
+        }).json
+        assert page["total"] == len(expected)
+        assert len(page["papers"]) == max(0, min(1, len(expected) - 1))
+
+
+def test_conference_filters_ignored_for_authors(conference_library):
+    with create_app(*conference_library).test_client() as client:
+        response = client.get("/api/papers?view=authors&venue=CoRL&year=1900")
+        assert {p["arxiv_id"] for p in response.json["papers"]} == {"1", "2", "4"}
+
+
 @pytest.mark.parametrize("view,show_read,expected", [
     (None, False, {"Author paper", "Other saved paper", "General top paper"}),
     ("authors", False, {"Author paper", "Other saved paper"}),
@@ -130,3 +190,16 @@ def test_cli_show_views(library, monkeypatch, capsys, view, show_read, expected)
     output = capsys.readouterr().out
     titles = {line[4:] for line in output.splitlines() if line.startswith("[")}
     assert titles == expected
+
+
+def test_configured_custom_venue_in_filters(conference_library):
+    db_path, config_path = conference_library
+    db = PaperDB(db_path)
+    db.tag_paper("5", "AAAI 2025")
+    db.close()
+    config_path.write_text(config_path.read_text() + "conferences: [AAAI]\n")
+    with create_app(db_path, config_path).test_client() as client:
+        assert "AAAI" in client.get("/api/filters").json["venues"]
+        ids = {p["arxiv_id"] for p in client.get(
+            "/api/papers", query_string={"view": "top", "venue": "AAAI"}).json["papers"]}
+        assert ids == {"5"}

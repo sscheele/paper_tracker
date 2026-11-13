@@ -76,7 +76,7 @@ The web UI's fetch also includes configured conferences.
 
 Built-in venue labels (case insensitive; full S2 venue names also work):
 
-- ML: `ICLR`, `NeurIPS`, `CoRL`.
+- ML: `ICLR`, `ICML` (International Conference on Machine Learning), `NeurIPS`, `CoRL`.
 - Robotics conferences: `ICRA`, `IROS`, `Humanoids`.
 - Robotics journals: `T-RO` (IEEE Transactions on Robotics), `RA-L` (IEEE Robotics
   and Automation Letters), `IJRR` (The International Journal of Robotics Research).
@@ -103,7 +103,7 @@ year. `--year` and `conference_years` select the conference year: for ICLR, ICRA
 and CVPR, we query S2 years Y-1 and Y and infer the conference year as S2 year + 1 for
 September–December publication dates, otherwise S2 year. Missing dates fall back
 to S2 year. This inference can still mislabel early-posted preprints; coverage
-can be incomplete. All other venues, including journals, use S2 year directly.
+can be incomplete. All other venues, including ICML and journals, use S2 year directly.
 ICRA has a [September submission deadline](https://2025.ieee-icra.org/contribute/)
 for its May conference; CVPR has a
 [November submission deadline](https://cvpr2023.thecvf.com/Conferences/2025/Dates)
@@ -117,7 +117,10 @@ remaining venues continue; an optional API key is sent as `x-api-key`.
 The web UI has **My authors** and **Top papers** tabs, with the selected tab saved
 in the URL hash. Top papers shows papers tagged `top-conference`; My authors shows
 all other papers plus conference papers matching a tracked author's surname.
-The existing filters apply within each tab. Previously fetched conference papers
+The existing filters apply within each tab. Top papers also has Venue and Year
+dropdowns derived from known venue/year tags on top-conference papers. Either
+can be selected independently; selections survive tab switches and are ignored
+in My authors. Previously fetched conference papers
 receive the new tag when fetched again. The list API defaults to all papers and
 accepts `view=all`, `view=authors`, or `view=top`; CLI `show` accepts `--view` with
 the same choices.

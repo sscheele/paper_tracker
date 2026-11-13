@@ -11,6 +11,7 @@ from .db import PaperDB
 S2_SEARCH_URL = "https://api.semanticscholar.org/graph/v1/paper/search/bulk"
 VENUE_ALIASES = {
     "ICLR": "ICLR",
+    "ICML": "International Conference on Machine Learning",
     "NeurIPS": "NeurIPS",
     "CoRL": "CoRL",
     "ICRA": "IEEE International Conference on Robotics and Automation",

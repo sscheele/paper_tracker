@@ -30,6 +30,8 @@ def no_network(monkeypatch):
 
 @pytest.mark.parametrize("venue,expected", [
     ("ICLR", ("ICLR", "ICLR")),
+    ("icml", ("International Conference on Machine Learning", "ICML")),
+    ("International Conference on Machine Learning", ("International Conference on Machine Learning", "ICML")),
     ("neurips", ("NeurIPS", "NeurIPS")),
     ("corl", ("CoRL", "CoRL")),
     ("icra", ("IEEE International Conference on Robotics and Automation", "ICRA")),
@@ -83,6 +85,20 @@ def test_empty_venue():
     client = SemanticScholarClient()
     client.session.get = Mock(return_value=response({"data": [], "total": 0}))
     assert client.fetch_top("Unknown", 2024, 10) == ([], 0)
+
+
+def test_icml_uses_publication_year():
+    client = SemanticScholarClient()
+    client.session.get = Mock(return_value=response({"data": [
+        {"year": 2024, "publicationDate": "2024-10-01", "externalIds": {"ArXiv": "2410.00001"}},
+        {"year": 2024, "publicationDate": "2024-01-20", "externalIds": {"ArXiv": "2401.00001"}},
+    ]}))
+    assert client.fetch_top("icml", 2024, 2) == (
+        [("2410.00001", "ICML"), ("2401.00001", "ICML")], 0,
+    )
+    params = client.session.get.call_args.kwargs["params"]
+    assert params["venue"] == "International Conference on Machine Learning"
+    assert params["year"] == 2024
 
 
 def test_429_retry(monkeypatch):
