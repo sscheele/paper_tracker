@@ -48,6 +48,10 @@ authors:
 
 lookback_days: 7           # how far back to search (default: 7)
 max_results_per_author: 50 # max results per author query (default: 50)
+conferences: []           # e.g. [ICLR, NeurIPS, CoRL]; included in normal fetch
+conference_years: []      # empty = current year and previous year
+top_papers_per_conference: 25
+semantic_scholar_api_key: "" # optional; helps with API rate limits
 ```
 
 ## Usage
@@ -57,9 +61,41 @@ max_results_per_author: 50 # max results per author query (default: 50)
 ```bash
 paper-downloader fetch            # uses configured lookback_days
 paper-downloader fetch --days 14  # override lookback period
+paper-downloader fetch --no-conferences # only fetch authors
+paper-downloader fetch-conferences # use configured conferences/years/top count
+paper-downloader fetch-conferences --venue ICLR --venue NeurIPS --venue CoRL --year 2024 --top 10
 ```
 
+Conference discovery uses the [Semantic Scholar Graph API](https://api.semanticscholar.org/api-docs/graph)
+to select the most cited papers with arXiv IDs, then fetches canonical metadata
+from arXiv. Results enter the same database and receive tags such as `ICLR 2024`
+for the web UI's tag filter, plus the fixed `top-conference` tag. Existing read
+status is preserved. Conference papers ignore `lookback_days`; `--venue` and
+`--year` can be repeated for ad-hoc runs.
+The web UI's fetch also includes configured conferences.
+
+Per-venue summaries report unique papers inspected (`found`), those with arXiv
+IDs (`with-arXiv`), newly inserted papers (`new`), and papers without arXiv IDs
+or missing arXiv metadata (`skipped`). Discovery scans further down the citation
+ranking to fill the requested arXiv quota when possible. S2's `year` is publication
+year. `--year` and `conference_years` select the conference year: for ICLR,
+we query S2 years Y-1 and Y and infer the conference year as S2 year + 1 for
+September–December publication dates, otherwise S2 year. Missing dates fall back
+to S2 year. This inference can still mislabel early-posted preprints; coverage
+can be incomplete. NeurIPS and CoRL use S2 year directly.
+Unauthenticated S2 access is rate limited: requests are spaced two seconds apart,
+with retries after 5, 10, and 20 seconds. An exhausted venue is reported and the
+remaining venues continue; an optional API key is sent as `x-api-key`.
+
 ### Browse papers
+
+The web UI has **My authors** and **Top papers** tabs, with the selected tab saved
+in the URL hash. Top papers shows papers tagged `top-conference`; My authors shows
+all other papers plus conference papers matching a tracked author's surname.
+The existing filters apply within each tab. Previously fetched conference papers
+receive the new tag when fetched again. The list API defaults to all papers and
+accepts `view=all`, `view=authors`, or `view=top`; CLI `show` accepts `--view` with
+the same choices.
 
 ```bash
 paper-downloader show               # unread papers, plaintext

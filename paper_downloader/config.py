@@ -23,6 +23,10 @@ def load_config(path: Path | None = None, create_if_missing: bool = False) -> di
                 "authors": [],
                 "lookback_days": 7,
                 "max_results_per_author": 50,
+                "conferences": [],
+                "conference_years": [],
+                "top_papers_per_conference": 25,
+                "semantic_scholar_api_key": "",
             }
             with open(config_path, "w") as f:
                 yaml.dump(default, f, default_flow_style=False, sort_keys=False)
@@ -37,6 +41,10 @@ def load_config(path: Path | None = None, create_if_missing: bool = False) -> di
     config.setdefault("authors", [])
     config.setdefault("lookback_days", 7)
     config.setdefault("max_results_per_author", 50)
+    config.setdefault("conferences", [])
+    config.setdefault("conference_years", [])
+    config.setdefault("top_papers_per_conference", 25)
+    config.setdefault("semantic_scholar_api_key", "")
     return config
 
 

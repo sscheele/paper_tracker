@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .arxiv import ArxivClient
 from .config import DEFAULT_CONFIG_PATH, DEFAULT_DB_PATH, load_config
+from .conferences import fetch_conferences
 from .db import PaperDB
 from .output import format_html, format_plaintext, format_rss
 
@@ -30,10 +31,17 @@ def main():
     # fetch
     fetch_p = sub.add_parser("fetch", help="Fetch new papers from arxiv")
     fetch_p.add_argument("--days", type=int, default=None, help="Override lookback_days")
+    fetch_p.add_argument("--no-conferences", action="store_true", help="Skip conference papers")
+
+    conferences_p = sub.add_parser("fetch-conferences", help="Fetch most cited conference papers")
+    conferences_p.add_argument("--venue", action="append", help="Venue (repeatable; default: config)")
+    conferences_p.add_argument("--year", type=int, action="append", help="Conference year (repeatable; default: config)")
+    conferences_p.add_argument("--top", type=int, help="Number of arXiv papers per venue/year")
 
     # show
     show_p = sub.add_parser("show", help="Show papers")
     show_p.add_argument("--all", action="store_true", help="Show read papers too")
+    show_p.add_argument("--view", choices=["all", "authors", "top"], default="all", help="Paper source (default: all)")
     show_p.add_argument(
         "--format", choices=["text", "html", "rss"], default="text",
         help="Output format (default: text)",
@@ -62,6 +70,8 @@ def main():
     serve_p.add_argument("--debug", action="store_true", help="Enable debug mode")
 
     args = parser.parse_args()
+    if args.command == "fetch-conferences" and args.top is not None and args.top < 1:
+        parser.error("--top must be positive")
     if not args.command:
         parser.print_help()
         sys.exit(1)
@@ -83,8 +93,10 @@ def main():
     try:
         if args.command == "fetch":
             _cmd_fetch(config, db, args)
+        elif args.command == "fetch-conferences":
+            _cmd_fetch_conferences(config, db, args)
         elif args.command == "show":
-            _cmd_show(db, args)
+            _cmd_show(db, args, config)
         elif args.command == "read":
             _cmd_read(db, args)
         elif args.command == "unread":
@@ -109,7 +121,7 @@ def _cmd_fetch(config: dict, db: PaperDB, args):
         papers = client.search_authors(authors, max_results=max_results)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        return
+        papers = []
 
     total_new = 0
     for paper in papers:
@@ -118,10 +130,21 @@ def _cmd_fetch(config: dict, db: PaperDB, args):
                 total_new += 1
 
     print(f"Found {len(papers)} papers, {total_new} new", file=sys.stderr)
+    if config.get("conferences") and not args.no_conferences:
+        for message, _ in fetch_conferences(config, db, arxiv_client=client):
+            print(message, file=sys.stderr)
 
 
-def _cmd_show(db: PaperDB, args):
-    papers = db.get_all(unread_only=not args.all)
+def _cmd_fetch_conferences(config: dict, db: PaperDB, args):
+    for message, _ in fetch_conferences(
+        config, db, venues=args.venue, years=args.year, top=args.top,
+    ):
+        print(message, file=sys.stderr)
+
+
+def _cmd_show(db: PaperDB, args, config: dict):
+    papers, _ = db.query_papers(unread_only=not args.all, view=args.view,
+                              tracked_authors=config["authors"], limit=-1)
 
     if args.format == "html":
         output = format_html(papers)

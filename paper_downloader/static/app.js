@@ -1,5 +1,6 @@
 /* --- State --- */
 let state = {
+  view: location.hash === '#top' ? 'top' : 'authors',
   papers: [],
   total: 0,
   filters: { unread_only: true, favorite_only: false, author: '', category: '', tag: '', sort: 'published', order: 'desc' },
@@ -15,11 +16,24 @@ let state = {
 /* --- Init --- */
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
+  renderPaperTabs();
   loadTrackedAuthors().then(() => loadPapers());
   loadFilters();
   loadStats();
 
   document.getElementById('filter-view').addEventListener('click', handleViewFilter);
+  document.getElementById('paper-tabs').addEventListener('click', e => {
+    const button = e.target.closest('button[data-source]');
+    if (button) location.hash = button.dataset.source;
+  });
+  window.addEventListener('hashchange', () => {
+    state.view = location.hash === '#top' ? 'top' : 'authors';
+    state.offset = 0;
+    state.selected.clear();
+    updateBulkBar();
+    renderPaperTabs();
+    loadPapers();
+  });
   document.getElementById('filter-author').addEventListener('change', e => { state.filters.author = e.target.value; state.offset = 0; loadPapers(); });
   document.getElementById('filter-category').addEventListener('change', e => { state.filters.category = e.target.value; state.offset = 0; loadPapers(); });
   document.getElementById('filter-tag').addEventListener('change', e => { state.filters.tag = e.target.value; state.offset = 0; loadPapers(); });
@@ -87,9 +101,20 @@ async function api(path, opts = {}) {
 }
 
 /* --- Papers --- */
+function renderPaperTabs() {
+  document.querySelectorAll('#paper-tabs button').forEach(button => {
+    const active = button.dataset.source === state.view;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+}
+
+let papersRequest = 0;
 async function loadPapers() {
+  const requestId = ++papersRequest;
   const f = state.filters;
   const params = new URLSearchParams({
+    view: state.view,
     unread_only: f.unread_only,
     favorite_only: f.favorite_only,
     sort: f.sort,
@@ -103,6 +128,7 @@ async function loadPapers() {
 
   try {
     const data = await api(`/api/papers?${params}`);
+    if (requestId !== papersRequest) return;
     state.papers = data.papers;
     state.total = data.total;
     renderPapers();
@@ -347,7 +373,7 @@ async function checkFetchConfig() {
   try {
     const config = await api('/api/config');
     if (!config.mailto) { toast('Set your email in Settings before fetching (required by arxiv API).', 'error'); return null; }
-    if (!config.authors || config.authors.length === 0) { toast('Add at least one author in Settings before fetching.', 'error'); return null; }
+    if (!config.authors?.length && !config.conferences?.length) { toast('Add an author in Settings or configure conferences before fetching.', 'error'); return null; }
     return config;
   } catch (e) { return null; }
 }

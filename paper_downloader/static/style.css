@@ -139,6 +139,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
   gap: 0.25em;
 }
 
+.paper-tabs { margin-bottom: 1em; }
+/* Switch both tab backgrounds together, without an intermediate mixed state. */
+.paper-tabs button { transition: none; }
+
 .filter-group button {
   font-size: 0.85em;
   padding: 0.3em 0.7em;

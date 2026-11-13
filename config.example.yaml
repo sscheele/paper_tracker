@@ -19,3 +19,12 @@ lookback_days: 7
 
 # Maximum results per author query (default: 50)
 max_results_per_author: 50
+
+# Automatically include most cited conference papers when running fetch.
+# For example: [ICLR, NeurIPS, CoRL]. Unknown venue names pass through to S2.
+conferences: []
+# Conference years; empty = current year and previous year (ICLR is inferred).
+conference_years: []
+top_papers_per_conference: 25
+# Optional Semantic Scholar key for higher rate limits.
+semantic_scholar_api_key: ""

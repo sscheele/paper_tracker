@@ -10,6 +10,7 @@ from flask import Flask, g, jsonify, render_template, request, Response, stream_
 
 from .arxiv import ArxivClient
 from .config import load_config, save_config
+from .conferences import fetch_conferences
 
 log = logging.getLogger(__name__)
 
@@ -73,6 +74,8 @@ def create_app(db_path: Path, config_path: Path | None = None):
             author=request.args.get("author") or None,
             category=request.args.get("category") or None,
             tag=request.args.get("tag") or None,
+            view=request.args.get("view", "all"),
+            tracked_authors=get_config()["authors"] if request.args.get("view") == "authors" else None,
             sort_by=request.args.get("sort", "published"),
             sort_order=request.args.get("order", "desc"),
             limit=int(request.args.get("limit", 50)),
@@ -190,6 +193,7 @@ def create_app(db_path: Path, config_path: Path | None = None):
         return jsonify({
             "mailto": config.get("mailto", ""),
             "authors": config.get("authors", []),
+            "conferences": config.get("conferences", []),
             "lookback_days": config.get("lookback_days", 7),
         })
 
@@ -234,8 +238,8 @@ def create_app(db_path: Path, config_path: Path | None = None):
         config = get_config()
         if not config.get("mailto"):
             return jsonify({"error": "Set your email in Settings before fetching (required by arxiv API)."}), 400
-        if not config.get("authors"):
-            return jsonify({"error": "Add at least one author in Settings before fetching."}), 400
+        if not config.get("authors") and not config.get("conferences"):
+            return jsonify({"error": "Add an author in Settings or configure conferences before fetching."}), 400
         lookback_days = int(request.args.get("days", config["lookback_days"]))
         cutoff = datetime.now(timezone.utc) - timedelta(days=lookback_days)
         authors = config["authors"]
@@ -248,19 +252,23 @@ def create_app(db_path: Path, config_path: Path | None = None):
             client = ArxivClient(mailto=mailto)
             db = PaperDB(db_path)
             try:
+                total_new = 0
                 yield f"data: {json.dumps({'type': 'progress', 'message': f'Fetching papers for {len(authors)} authors...'})}\n\n"
                 try:
                     papers = client.search_authors(authors, max_results=max_results)
-                    total_new = 0
                     for paper in papers:
                         if paper.published >= cutoff:
                             if db.upsert_paper(paper):
                                 total_new += 1
                     yield f"data: {json.dumps({'type': 'result', 'found': len(papers), 'new': total_new})}\n\n"
-                    yield f"data: {json.dumps({'type': 'done', 'total_new': total_new})}\n\n"
                 except Exception as e:
                     yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
-                    yield f"data: {json.dumps({'type': 'done', 'total_new': 0})}\n\n"
+                if config.get("conferences"):
+                    for message, new in fetch_conferences(config, db, arxiv_client=client):
+                        total_new += new
+                        event_type = "error" if message.startswith("Error fetching ") else "progress"
+                        yield f"data: {json.dumps({'type': event_type, 'message': message})}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'total_new': total_new})}\n\n"
             finally:
                 db.close()
 

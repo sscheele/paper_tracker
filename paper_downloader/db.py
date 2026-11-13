@@ -266,6 +266,8 @@ class PaperDB:
         author: str | None = None,
         category: str | None = None,
         tag: str | None = None,
+        view: str = "all",
+        tracked_authors: list[str] | None = None,
         sort_by: str = "published",
         sort_order: str = "desc",
         limit: int = 50,
@@ -274,6 +276,31 @@ class PaperDB:
         """Unified query with filtering, sorting, pagination. Returns (papers, total)."""
         conditions = []
         params: list = []
+
+        if view not in {"all", "authors", "top"}:
+            raise ValueError("view must be all, authors, or top")
+        is_top = (
+            "EXISTS (SELECT 1 FROM paper_tags top_tag "
+            "WHERE top_tag.arxiv_id = p.arxiv_id AND top_tag.tag = 'top-conference')"
+        )
+        if view == "top":
+            conditions.append(is_top)
+        elif view == "authors":
+            # Config accepts both "First Last" and "Last, First" names.
+            surnames = {
+                tuple((name.split(",", 1)[0] if "," in name else name.split()[-1]).casefold().split())
+                for name in (tracked_authors or []) if name.strip()
+            }
+
+            def matches_author(authors):
+                for name in authors.split(","):
+                    tokens = tuple(name.casefold().split())
+                    if any(surname and tokens[-len(surname):] == surname for surname in surnames):
+                        return True
+                return False
+
+            self.conn.create_function("matches_tracked_author", 1, matches_author)
+            conditions.append(f"(NOT {is_top} OR matches_tracked_author(p.authors))")
 
         if unread_only:
             conditions.append("p.read = 0")

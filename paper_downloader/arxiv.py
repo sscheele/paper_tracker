@@ -9,6 +9,7 @@ Follows arxiv API Terms of Use:
 import gzip
 import io
 import logging
+import re
 import tarfile
 import time
 import xml.etree.ElementTree as ET
@@ -44,6 +45,11 @@ MIN_REQUEST_INTERVAL = 3.0
 RETRY_INTERVAL = 10.0
 
 
+def normalize_arxiv_id(arxiv_id: str) -> str:
+    """Strip a version suffix to match the canonical database ID."""
+    return re.sub(r"v\d+$", "", arxiv_id.strip())
+
+
 @dataclass
 class Paper:
     arxiv_id: str
@@ -75,12 +81,12 @@ class ArxivClient:
         if elapsed < MIN_REQUEST_INTERVAL:
             time.sleep(MIN_REQUEST_INTERVAL - elapsed)
 
-    def _get(self, params: dict) -> str:
-        """Fetch from the arxiv query API, retrying forever until success.
+    def _get(self, params: dict, max_retries: int | None = None) -> str:
+        """Fetch from the arxiv query API, retrying forever by default.
 
         arxiv intermittently rejects requests (429/5xx) even when we're under
         the rate limit, so we keep retrying every RETRY_INTERVAL seconds rather
-        than giving up after a fixed count.
+        than giving up after a fixed count. ID lookups use a bounded budget.
         """
         attempt = 0
         while True:
@@ -94,6 +100,8 @@ class ArxivClient:
                 # 429 (rate limited) and 5xx (server busy/unavailable, e.g.
                 # arxiv's frequent 503s on heavy queries) are transient.
                 if resp.status_code == 429 or resp.status_code >= 500:
+                    if max_retries is not None and attempt > max_retries:
+                        resp.raise_for_status()
                     log.warning("arxiv API returned %d, retrying in %ds (attempt %d)",
                                 resp.status_code, RETRY_INTERVAL, attempt)
                     time.sleep(RETRY_INTERVAL)
@@ -102,6 +110,8 @@ class ArxivClient:
                 return resp.text
             except (requests.Timeout, requests.ConnectionError) as e:
                 self._last_request_time = time.monotonic()
+                if max_retries is not None and attempt > max_retries:
+                    raise
                 log.warning("arxiv API request failed: %s, retrying in %ds (attempt %d)",
                             e, RETRY_INTERVAL, attempt)
                 time.sleep(RETRY_INTERVAL)
@@ -125,6 +135,19 @@ class ArxivClient:
         }
         xml_text = self._get(params)
         return self._parse_feed(xml_text)
+
+    def fetch_ids(self, arxiv_ids: list[str]) -> list[Paper]:
+        """Fetch canonical metadata in batches, with at most three retries each."""
+        ids = list(dict.fromkeys(normalize_arxiv_id(aid) for aid in arxiv_ids))
+        papers = []
+        for start in range(0, len(ids), 50):
+            batch = ids[start:start + 50]
+            xml_text = self._get({"id_list": ",".join(batch), "max_results": len(batch)},
+                                 max_retries=3)
+            # Parsed IDs use the DB key form (last path segment, see _parse_entry).
+            wanted = {aid.rsplit("/", 1)[-1] for aid in batch}
+            papers.extend(p for p in self._parse_feed(xml_text) if p.arxiv_id in wanted)
+        return papers
 
     def fetch_tex_source(self, arxiv_id: str, max_retries: int = 5) -> TexResult:
         """Download and extract TeX source for a paper."""
@@ -196,12 +219,7 @@ class ArxivClient:
         if id_el is None or id_el.text is None:
             return None
         abs_url = id_el.text.strip()
-        arxiv_id = abs_url.rsplit("/", 1)[-1]
-        # Strip version suffix for canonical ID
-        if arxiv_id and "v" in arxiv_id:
-            base_id = arxiv_id.rsplit("v", 1)
-            if base_id[1].isdigit():
-                arxiv_id = base_id[0]
+        arxiv_id = normalize_arxiv_id(abs_url.rsplit("/", 1)[-1])
 
         title = " ".join(title_el.text.split())
 
