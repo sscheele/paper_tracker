@@ -13,10 +13,24 @@ VENUE_ALIASES = {
     "ICLR": "ICLR",
     "NeurIPS": "NeurIPS",
     "CoRL": "CoRL",
+    "ICRA": "IEEE International Conference on Robotics and Automation",
+    "IROS": "IROS",
+    "Humanoids": "IEEE-RAS International Conference on Humanoid Robots",
+    "T-RO": "IEEE Transactions on Robotics",
+    "RA-L": "IEEE Robotics and Automation Letters",
+    "IJRR": "The International Journal of Robotics Research",
+    "CVPR": "Computer Vision and Pattern Recognition",
+    "ICCV": "ICCV",
+    "ECCV": "European Conference on Computer Vision",
+    "TPAMI": "IEEE Transactions on Pattern Analysis and Machine Intelligence",
+    "IJCV": "International Journal of Computer Vision",
+    "SIGGRAPH": "International Conference on Computer Graphics and Interactive Techniques",
+    "SIGGRAPH Asia": "SIGGRAPH Asia",
+    "TOG": "ACM Transactions on Graphics",
 }
 MIN_REQUEST_INTERVAL = 2.0
-# These venues receive fall submissions for the following spring's conference.
-PRIOR_YEAR_SUBMISSION_VENUES = {"ICLR"}
+# These venues receive fall submissions for the following spring/summer's conference.
+PRIOR_YEAR_SUBMISSION_VENUES = {"ICLR", "ICRA", "CVPR"}
 
 
 def resolve_venue(venue: str) -> tuple[str, str]:

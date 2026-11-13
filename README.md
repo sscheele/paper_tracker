@@ -48,7 +48,7 @@ authors:
 
 lookback_days: 7           # how far back to search (default: 7)
 max_results_per_author: 50 # max results per author query (default: 50)
-conferences: []           # e.g. [ICLR, NeurIPS, CoRL]; included in normal fetch
+conferences: []           # e.g. [ICRA, CVPR, SIGGRAPH, IROS]; included in normal fetch
 conference_years: []      # empty = current year and previous year
 top_papers_per_conference: 25
 semantic_scholar_api_key: "" # optional; helps with API rate limits
@@ -74,15 +74,40 @@ status is preserved. Conference papers ignore `lookback_days`; `--venue` and
 `--year` can be repeated for ad-hoc runs.
 The web UI's fetch also includes configured conferences.
 
+Built-in venue labels (case insensitive; full S2 venue names also work):
+
+- ML: `ICLR`, `NeurIPS`, `CoRL`.
+- Robotics conferences: `ICRA`, `IROS`, `Humanoids`.
+- Robotics journals: `T-RO` (IEEE Transactions on Robotics), `RA-L` (IEEE Robotics
+  and Automation Letters), `IJRR` (The International Journal of Robotics Research).
+- Computer vision: `CVPR`, `ICCV`, `ECCV`, `TPAMI` (IEEE Transactions on Pattern
+  Analysis and Machine Intelligence), `IJCV` (International Journal of Computer Vision).
+- Graphics: `SIGGRAPH`, `SIGGRAPH Asia`, `TOG` (ACM Transactions on Graphics).
+
+`SIGGRAPH` uses S2's `International Conference on Computer Graphics and Interactive
+Techniques` filter; `SIGGRAPH Asia` uses its distinct `SIGGRAPH Asia` filter.
+These return conference-track technical papers. Add `TOG` for the journal-track
+papers, which [SIGGRAPH publishes in ACM Transactions on Graphics](https://s2024.siggraph.org/program/technical-papers/),
+alongside other TOG articles. TOG uses the publication year, without a conference
+year shift. Unknown venue names pass through to S2.
+
+RSS is omitted: the tested S2 venue spellings return unrelated statistics papers
+for 2025, despite returning robotics papers for 2024. Science Robotics is omitted
+for low arXiv coverage (2 of its top 20 citation-ranked 2024 papers).
+
 Per-venue summaries report unique papers inspected (`found`), those with arXiv
 IDs (`with-arXiv`), newly inserted papers (`new`), and papers without arXiv IDs
 or missing arXiv metadata (`skipped`). Discovery scans further down the citation
 ranking to fill the requested arXiv quota when possible. S2's `year` is publication
-year. `--year` and `conference_years` select the conference year: for ICLR,
-we query S2 years Y-1 and Y and infer the conference year as S2 year + 1 for
+year. `--year` and `conference_years` select the conference year: for ICLR, ICRA,
+and CVPR, we query S2 years Y-1 and Y and infer the conference year as S2 year + 1 for
 September–December publication dates, otherwise S2 year. Missing dates fall back
 to S2 year. This inference can still mislabel early-posted preprints; coverage
-can be incomplete. NeurIPS and CoRL use S2 year directly.
+can be incomplete. All other venues, including journals, use S2 year directly.
+ICRA has a [September submission deadline](https://2025.ieee-icra.org/contribute/)
+for its May conference; CVPR has a
+[November submission deadline](https://cvpr2023.thecvf.com/Conferences/2025/Dates)
+for its June conference.
 Unauthenticated S2 access is rate limited: requests are spaced two seconds apart,
 with retries after 5, 10, and 20 seconds. An exhausted venue is reported and the
 remaining venues continue; an optional API key is sent as `x-api-key`.

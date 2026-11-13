@@ -32,6 +32,21 @@ def no_network(monkeypatch):
     ("ICLR", ("ICLR", "ICLR")),
     ("neurips", ("NeurIPS", "NeurIPS")),
     ("corl", ("CoRL", "CoRL")),
+    ("icra", ("IEEE International Conference on Robotics and Automation", "ICRA")),
+    ("iros", ("IROS", "IROS")),
+    ("humanoids", ("IEEE-RAS International Conference on Humanoid Robots", "Humanoids")),
+    ("t-ro", ("IEEE Transactions on Robotics", "T-RO")),
+    ("ra-l", ("IEEE Robotics and Automation Letters", "RA-L")),
+    ("ijrr", ("The International Journal of Robotics Research", "IJRR")),
+    ("cvpr", ("Computer Vision and Pattern Recognition", "CVPR")),
+    ("iccv", ("ICCV", "ICCV")),
+    ("eccv", ("European Conference on Computer Vision", "ECCV")),
+    ("tpami", ("IEEE Transactions on Pattern Analysis and Machine Intelligence", "TPAMI")),
+    ("ijcv", ("International Journal of Computer Vision", "IJCV")),
+    ("siggraph", ("International Conference on Computer Graphics and Interactive Techniques", "SIGGRAPH")),
+    ("siggraph asia", ("SIGGRAPH Asia", "SIGGRAPH Asia")),
+    ("tog", ("ACM Transactions on Graphics", "TOG")),
+    ("  IEEE TRANSACTIONS ON ROBOTICS  ", ("IEEE Transactions on Robotics", "T-RO")),
     ("Custom Conference", ("Custom Conference", "Custom Conference")),
 ])
 def test_aliases(venue, expected):
@@ -110,11 +125,27 @@ def make_paper(arxiv_id):
 @pytest.mark.parametrize("venue,year,expected", [
     ("ICLR", 2025, ["2410.10813", "2505.00001"]),
     ("iclr", 2024, ["2405.00001"]),
+    ("ICRA", 2025, ["2410.10813", "2505.00001"]),
+    ("icra", 2024, ["2405.00001"]),
+    ("CVPR", 2025, ["2410.10813", "2505.00001"]),
+    ("cvpr", 2024, ["2405.00001"]),
     ("NeurIPS", 2024, ["2410.10813", "2405.00001"]),
     ("CoRL", 2024, ["2410.10813", "2405.00001"]),
+    ("Humanoids", 2024, ["2410.10813", "2405.00001"]),
+    ("IROS", 2024, ["2410.10813", "2405.00001"]),
+    ("ICCV", 2024, ["2410.10813", "2405.00001"]),
+    ("T-RO", 2024, ["2410.10813", "2405.00001"]),
+    ("RA-L", 2024, ["2410.10813", "2405.00001"]),
+    ("IJRR", 2024, ["2410.10813", "2405.00001"]),
+    ("ECCV", 2024, ["2410.10813", "2405.00001"]),
+    ("TPAMI", 2024, ["2410.10813", "2405.00001"]),
+    ("IJCV", 2024, ["2410.10813", "2405.00001"]),
+    ("SIGGRAPH", 2024, ["2410.10813", "2405.00001"]),
+    ("SIGGRAPH Asia", 2024, ["2410.10813", "2405.00001"]),
+    ("TOG", 2024, ["2410.10813", "2405.00001"]),
 ])
 def test_cli_conference_year_tags(tmp_path, monkeypatch, venue, year, expected):
-    # Citation order deliberately puts next year's ICLR paper ahead of valid
+    # Citation order deliberately puts next year's fall submission ahead of valid
     # matches, so filtering must happen before applying the requested quota.
     candidates = [
         {"year": 2025, "publicationDate": "2025-10-01", "citationCount": 500,
